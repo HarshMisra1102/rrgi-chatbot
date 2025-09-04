@@ -1,0 +1,667 @@
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls, Html, Float, Environment, ContactShadows, Text } from "@react-three/drei";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Menu, Search, MessageCircle, MapPin, GraduationCap, Building2, BookOpen, Calendar, Phone, ChevronRight } from "lucide-react";
+
+/**
+ * RRIIMT 3D Campus — Single-file React app
+ * -------------------------------------------------------------
+ * This file creates a modern, 3D-visualized site inspired by https://rrimt.ac.in/.
+ * Swap placeholder copy with your real data. The 3D scene highlights the campus
+ * with interactive buildings, tooltips, and a mini-map. A built-in chatbot widget
+ * answers FAQs with a rule-based engine (swap for an API when ready).
+ *
+ * Tech used: React, Tailwind, Framer Motion, @react-three/fiber, drei, shadcn/ui, lucide-react.
+ * Styling: soft cards, 2xl radii, roomy padding, grid layout, subtle animations.
+ */
+
+// ------------------------------
+// Design tokens you can tweak
+// ------------------------------
+const BRAND = {
+  name: "RRIIMT",
+  tagline: "Innovate. Impact. Inspire.",
+  primary: "from-indigo-600 to-sky-500",
+  accent: "from-emerald-500 to-teal-400",
+};
+
+// ------------------------------
+// Sample campus data (replace with real content)
+// ------------------------------
+const buildings = [
+  {
+    id: "admin",
+    name: "Administration Block",
+    color: "#4f46e5",
+    size: [10, 6, 8],
+    position: [0, 3, 0],
+    description: "Admissions, Accounts, and the Registrar office.",
+    highlights: ["Helpdesk", "Fee Desk", "Conference Room"],
+  },
+  {
+    id: "library",
+    name: "Central Library",
+    color: "#22c55e",
+    size: [8, 5, 8],
+    position: [-14, 2.5, -4],
+    description: "Digital resources, reading halls, and research pods.",
+    highlights: ["E-Resources", "Silent Hall", "Lounge"],
+  },
+  {
+    id: "engineering",
+    name: "Engineering Block",
+    color: "#0ea5e9",
+    size: [12, 5.5, 12],
+    position: [16, 2.75, -6],
+    description: "Labs and classrooms for CSE, ECE, ME.",
+    highlights: ["AI Lab", "Robotics", "CAD/CAM"],
+  },
+  {
+    id: "management",
+    name: "Management Studies",
+    color: "#ef4444",
+    size: [9, 5, 10],
+    position: [-8, 2.5, 14],
+    description: "MBA, BBA programs and incubation space.",
+    highlights: ["Case Rooms", "Startup Hub", "Seminar Hall"],
+  },
+  {
+    id: "hostel",
+    name: "Student Residences",
+    color: "#f59e0b",
+    size: [16, 5, 6],
+    position: [12, 2.5, 10],
+    description: "On-campus hostels with dining and rec rooms.",
+    highlights: ["Dining", "Gym", "Common Room"],
+  },
+];
+
+const quickLinks = [
+  { label: "Admissions 2025", icon: <ChevronRight className="h-4 w-4" />, href: "#admissions" },
+  { label: "Programs", icon: <ChevronRight className="h-4 w-4" />, href: "#programs" },
+  { label: "Placements", icon: <ChevronRight className="h-4 w-4" />, href: "#placements" },
+  { label: "Contact", icon: <ChevronRight className="h-4 w-4" />, href: "#contact" },
+];
+
+const programs = [
+  { code: "B.Tech", focus: "CSE, ECE, ME", duration: "4 Years", seats: 120 },
+  { code: "MBA", focus: "Finance, Marketing, HR", duration: "2 Years", seats: 60 },
+  { code: "BBA", focus: "General Management", duration: "3 Years", seats: 120 },
+  { code: "BCA", focus: "Computer Applications", duration: "3 Years", seats: 120 },
+];
+
+const events = [
+  { date: "Sep 12, 2025", title: "TechnoFest 2025", meta: "Projects • Robotics • Ideathon" },
+  { date: "Oct 03, 2025", title: "Industry Connect Day", meta: "Talks • Networking • Internships" },
+  { date: "Nov 20, 2025", title: "Convocation", meta: "Graduation Ceremony" },
+];
+
+// ------------------------------
+// 3D Scene Components
+// ------------------------------
+function Building({ data, isActive, onHover }) {
+  const ref = useRef();
+  const hover = useRef(false);
+  useFrame((state, delta) => {
+    if (!ref.current) return;
+    const target = hover.current || isActive ? 1.05 : 1.0;
+    ref.current.scale.x += (target - ref.current.scale.x) * 0.08;
+    ref.current.scale.y += (target - ref.current.scale.y) * 0.08;
+    ref.current.scale.z += (target - ref.current.scale.z) * 0.08;
+  });
+  return (
+    <group
+      position={data.position}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        hover.current = true;
+        onHover(data.id);
+      }}
+      onPointerOut={() => {
+        hover.current = false;
+        onHover(null);
+      }}
+    >
+      <mesh ref={ref} castShadow receiveShadow>
+        <boxGeometry args={data.size} />
+        <meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} />
+      </mesh>
+      <Float speed={1.2} floatIntensity={0.5}>
+        <Html center distanceFactor={12} className="select-none">
+          <div className={`px-3 py-1 rounded-full text-xs font-semibold shadow-lg ${isActive ? "bg-white text-gray-900" : "bg-white/80 text-gray-800 backdrop-blur"}`}>
+            {data.name}
+          </div>
+        </Html>
+      </Float>
+    </group>
+  );
+}
+
+function CampusGround() {
+  return (
+    <mesh rotation-x={-Math.PI / 2} receiveShadow>
+      <planeGeometry args={[120, 120]} />
+      <meshStandardMaterial color="#dbeafe" />
+    </mesh>
+  );
+}
+
+function Trees({ count = 30 }) {
+  const trees = useMemo(() => new Array(count).fill(0).map((_, i) => ({
+    x: (Math.random() - 0.5) * 100,
+    z: (Math.random() - 0.5) * 100,
+    h: 2 + Math.random() * 3,
+  })), [count]);
+  return (
+    <group>
+      {trees.map((t, i) => (
+        <group key={i} position={[t.x, 0, t.z]}>
+          <mesh position={[0, t.h / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.4, 0.6, t.h, 8]} />
+            <meshStandardMaterial color="#8b5a2b" />
+          </mesh>
+          <mesh position={[0, t.h + 1.5, 0]} castShadow>
+            <icosahedronGeometry args={[1.8, 0]} />
+            <meshStandardMaterial color="#16a34a" />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function Students({ count = 20 }) {
+  const group = useRef();
+  const points = useMemo(() => new Array(count).fill(0).map((_, i) => ({
+    r: 8 + Math.random() * 20,
+    a: Math.random() * Math.PI * 2,
+    s: 0.2 + Math.random() * 0.6,
+    y: 0.6 + Math.random() * 0.4,
+  })), [count]);
+  useFrame((state, delta) => {
+    if (!group.current) return;
+    points.forEach((p, i) => {
+      p.a += 0.2 * delta * (i % 2 ? 1 : -1);
+      const x = Math.cos(p.a) * p.r;
+      const z = Math.sin(p.a) * p.r;
+      const child = group.current.children[i];
+      if (child) child.position.set(x, p.y, z);
+    });
+  });
+  return (
+    <group ref={group}>
+      {points.map((p, i) => (
+        <mesh key={i} castShadow>
+          <sphereGeometry args={[p.s, 16, 16]} />
+          <meshStandardMaterial color="#0284c7" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function MiniMap({ activeId }) {
+  return (
+    <div className="absolute top-4 right-4 bg-white/80 backdrop-blur rounded-2xl shadow p-3 w-48 border border-white/60">
+      <div className="text-[10px] font-semibold text-gray-700 mb-2 flex items-center gap-1"><MapPin className="h-3 w-3"/> Campus Map</div>
+      <div className="grid grid-cols-3 gap-1">
+        {buildings.map((b) => (
+          <div key={b.id} className={`h-4 rounded ${activeId === b.id ? "bg-indigo-600" : "bg-gray-300"}`} title={b.name} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Scene({ activeId, setActiveId }) {
+  return (
+    <Canvas shadows camera={{ position: [24, 18, 26], fov: 42 }} className="rounded-3xl">
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 20, 10]} intensity={1.2} castShadow />
+      <Environment preset="city" />
+      <group>
+        <CampusGround />
+        <Trees />
+        <Students />
+        {buildings.map((b) => (
+          <Building key={b.id} data={b} isActive={activeId === b.id} onHover={setActiveId} />
+        ))}
+      </group>
+      <OrbitControls maxPolarAngle={Math.PI / 2.1} enableDamping dampingFactor={0.05} />
+      <ContactShadows position={[0, 0, 0]} opacity={0.3} blur={2.5} far={40} />
+    </Canvas>
+  );
+}
+
+// ------------------------------
+// Simple rule-based Chatbot (swap with API when ready)
+// ------------------------------
+function useFaqBot() {
+  const [messages, setMessages] = useState([{ role: "bot", text: `Hi! I'm RRIIMT Assistant. Ask me about admissions, programs, fees, placements, or campus life.` }]);
+  const respond = (text) => {
+    const lower = text.toLowerCase();
+    let reply = "Sorry, I didn't catch that. Can you rephrase?";
+    if (/(admission|apply|application|eligibility)/.test(lower)) {
+      reply = "Admissions for 2025 are open. B.Tech requires 10+2 with PCM. MBA requires a bachelor's degree; tests like CAT/CMAT are accepted. Apply online via the Admissions section.";
+    } else if (/(program|course|department|b\.tech|mba|bba|bca)/.test(lower)) {
+      reply = "Programs offered include B.Tech (CSE/ECE/ME), MBA (Finance/Marketing/HR), BBA, and BCA. Explore details under Programs.";
+    } else if (/(fee|scholarship|financial|tuition)/.test(lower)) {
+      reply = "Fee structure varies by program; merit scholarships and government schemes are available. Contact Admissions for the latest schedule and waivers.";
+    } else if (/(placement|career|internship|company)/.test(lower)) {
+      reply = "Our placement cell partners with tech and management firms. Average CTC last year was competitive with multiple internship pathways.";
+    } else if (/(contact|email|phone|reach|location|address)/.test(lower)) {
+      reply = "You can reach the helpdesk at +91-XXXXXXXXXX or visit the Contact section for email addresses and the campus map.";
+    } else if (/(hostel|residence|accommodation|mess|dining)/.test(lower)) {
+      reply = "On-campus hostels include dining, common rooms, and 24x7 security. Limited seats; apply early with your admission form.";
+    } else if (/(library|lab|facility|infrastructure)/.test(lower)) {
+      reply = "Facilities include the Central Library with e-resources, AI/Robotics labs, sports grounds, and seminar halls.";
+    }
+    setMessages((m) => [...m, { role: "user", text }, { role: "bot", text: reply }]);
+  };
+  return { messages, respond, setMessages };
+}
+
+function ChatWidget() {
+  const { messages, respond } = useFaqBot();
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  return (
+    <div className="fixed bottom-5 right-5 z-50">
+      {open && (
+        <div className="w-80 max-w-[90vw] h-96 bg-white rounded-2xl shadow-2xl border flex flex-col overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-sky-500 text-white text-sm font-semibold flex items-center gap-2">
+            <MessageCircle className="h-4 w-4" /> RRIIMT Assistant
+          </div>
+          <div className="flex-1 p-3 space-y-2 overflow-auto">
+            {messages.map((m, i) => (
+              <div key={i} className={`text-sm ${m.role === "bot" ? "text-gray-800" : "text-gray-700"}`}>
+                <div className={`max-w-[85%] px-3 py-2 rounded-2xl shadow ${m.role === "bot" ? "bg-gray-100" : "bg-indigo-50 ml-auto"}`}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-2 border-t flex items-center gap-2">
+            <Input
+              placeholder="Ask about admissions, programs..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && input.trim()) {
+                  respond(input.trim());
+                  setInput("");
+                }
+              }}
+            />
+            <Button onClick={() => { if (input.trim()) { respond(input.trim()); setInput(""); } }}>Send</Button>
+          </div>
+        </div>
+      )}
+      <button onClick={() => setOpen(!open)} className="rounded-full p-3 shadow-xl bg-gradient-to-r from-indigo-600 to-sky-500 text-white hover:scale-105 transition">
+        <MessageCircle className="h-6 w-6" />
+      </button>
+    </div>
+  );
+}
+
+// ------------------------------
+// UI Sections
+// ------------------------------
+function Navbar() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="sticky top-0 z-40 backdrop-blur bg-white/70 border-b">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-600 to-sky-500" />
+          <div className="font-bold text-lg">{BRAND.name}</div>
+          <Badge className="ml-2" variant="secondary">NAAC</Badge>
+        </div>
+        <div className="hidden md:flex items-center gap-6 text-sm">
+          <a href="#programs" className="hover:text-indigo-600">Programs</a>
+          <a href="#admissions" className="hover:text-indigo-600">Admissions</a>
+          <a href="#placements" className="hover:text-indigo-600">Placements</a>
+          <a href="#news" className="hover:text-indigo-600">News & Events</a>
+          <a href="#contact" className="hover:text-indigo-600">Contact</a>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative hidden md:block">
+            <Input className="pl-8" placeholder="Search site" />
+            <Search className="h-4 w-4 absolute left-2 top-2.5 text-gray-400" />
+          </div>
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="md:hidden"><Menu className="h-4 w-4" /></Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <SheetHeader>
+                <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 grid gap-3 text-sm">
+                <a href="#programs" onClick={() => setOpen(false)} className="hover:text-indigo-600">Programs</a>
+                <a href="#admissions" onClick={() => setOpen(false)} className="hover:text-indigo-600">Admissions</a>
+                <a href="#placements" onClick={() => setOpen(false)} className="hover:text-indigo-600">Placements</a>
+                <a href="#news" onClick={() => setOpen(false)} className="hover:text-indigo-600">News & Events</a>
+                <a href="#contact" onClick={() => setOpen(false)} className="hover:text-indigo-600">Contact</a>
+              </div>
+            </SheetContent>
+          </Sheet>
+          <Button className="hidden md:inline-flex bg-gradient-to-r from-indigo-600 to-sky-500">Apply Now</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Hero() {
+  const [activeId, setActiveId] = useState(null);
+  return (
+    <section className="relative overflow-hidden">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-6 px-4 py-10 md:py-16 items-center">
+        <div>
+          <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-4xl md:text-5xl font-extrabold tracking-tight">
+            {BRAND.name}: <span className="bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent">{BRAND.tagline}</span>
+          </motion.h1>
+          <p className="mt-4 text-gray-600 max-w-prose">
+            A next-gen campus experience. Explore programs, labs, and life at RRIIMT through an interactive 3D map, then chat with our assistant for instant answers.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {quickLinks.map((q) => (
+              <a key={q.label} href={q.href} className="group inline-flex items-center gap-2 px-4 py-2 rounded-2xl border shadow-sm bg-white hover:bg-gray-50">
+                {q.icon} <span className="font-medium">{q.label}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+        <div className="relative">
+          <div className="rounded-3xl p-1 bg-gradient-to-r from-indigo-600 to-sky-500">
+            <div className="rounded-2xl overflow-hidden bg-white">
+              <div className="h-[380px]">
+                <Scene activeId={activeId} setActiveId={setActiveId} />
+                <MiniMap activeId={activeId} />
+              </div>
+            </div>
+          </div>
+          {activeId && (
+            <div className="absolute -bottom-3 left-3 right-3">
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-white/90 backdrop-blur border rounded-2xl shadow p-3">
+                <div className="text-xs text-gray-500">Highlighted</div>
+                <div className="font-semibold">{buildings.find((b) => b.id === activeId)?.name}</div>
+                <div className="text-sm text-gray-600">{buildings.find((b) => b.id === activeId)?.description}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {buildings.find((b) => b.id === activeId)?.highlights.map((h) => (
+                    <Badge key={h} variant="secondary">{h}</Badge>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Programs() {
+  return (
+    <section id="programs" className="py-12 md:py-16 bg-gradient-to-b from-white to-slate-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-6">
+          <BookOpen className="h-5 w-5 text-indigo-600"/>
+          <h2 className="text-2xl md:text-3xl font-bold">Programs</h2>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          {programs.map((p) => (
+            <Card key={p.code} className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2"><GraduationCap className="h-5 w-5"/> {p.code}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-gray-600">
+                <div><span className="font-medium">Focus:</span> {p.focus}</div>
+                <div><span className="font-medium">Duration:</span> {p.duration}</div>
+                <div><span className="font-medium">Seats:</span> {p.seats}</div>
+                <Button variant="outline" className="mt-3 w-full">View Curriculum</Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Admissions() {
+  return (
+    <section id="admissions" className="py-12 md:py-16">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Building2 className="h-5 w-5 text-indigo-600"/>
+          <h2 className="text-2xl md:text-3xl font-bold">Admissions 2025</h2>
+        </div>
+        <Tabs defaultValue="ug" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 rounded-2xl">
+            <TabsTrigger value="ug">Undergraduate</TabsTrigger>
+            <TabsTrigger value="pg">Postgraduate</TabsTrigger>
+            <TabsTrigger value="intl">International</TabsTrigger>
+          </TabsList>
+          <TabsContent value="ug">
+            <Card className="rounded-2xl">
+              <CardContent className="pt-6 space-y-2 text-gray-700 text-sm">
+                <div>Eligibility: 10+2 with required subjects. Entrance per state/national norms.</div>
+                <div>Process: Apply online, document verification, fee payment.</div>
+                <div>Scholarships: Merit, need-based, and government schemes.</div>
+                <Button className="bg-gradient-to-r from-indigo-600 to-sky-500">Start Application</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="pg">
+            <Card className="rounded-2xl">
+              <CardContent className="pt-6 space-y-2 text-gray-700 text-sm">
+                <div>Eligibility: Bachelor's degree. Tests: CAT/CMAT/State Exams as applicable.</div>
+                <div>Process: Online application, shortlisting, PI, fee payment.</div>
+                <div>Assistantships: Teaching/Research assistant roles available.</div>
+                <Button className="bg-gradient-to-r from-indigo-600 to-sky-500">Start Application</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="intl">
+            <Card className="rounded-2xl">
+              <CardContent className="pt-6 space-y-2 text-gray-700 text-sm">
+                <div>Support with visas, housing, and onboarding. English proficiency required.</div>
+                <div>Dedicated advisor for international students.</div>
+                <Button className="bg-gradient-to-r from-indigo-600 to-sky-500">Start Application</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </section>
+  );
+}
+
+function Placements() {
+  return (
+    <section id="placements" className="py-12 md:py-16 bg-gradient-to-b from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Calendar className="h-5 w-5 text-indigo-600"/>
+          <h2 className="text-2xl md:text-3xl font-bold">Placements</h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-4">
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Career Services</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-700 space-y-2">
+              <div>Internships, resume clinics, mock interviews.</div>
+              <div>Top recruiters from tech, consulting, and manufacturing.</div>
+              <div>Alumni mentorship network.</div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Highlights</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-700 space-y-2">
+              <div>Strong placement record with rising median CTC.</div>
+              <div>Multiple pre-placement offers (PPOs) via internships.</div>
+              <div>Skill bootcamps: DSA, ML, Product.</div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Get Involved</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-700 space-y-2">
+              <Button variant="outline" className="w-full">Download Brochure</Button>
+              <Button className="w-full bg-gradient-to-r from-indigo-600 to-sky-500">Connect with T&P Cell</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function NewsEvents() {
+  return (
+    <section id="news" className="py-12 md:py-16">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Calendar className="h-5 w-5 text-indigo-600"/>
+          <h2 className="text-2xl md:text-3xl font-bold">News & Events</h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-4">
+          {events.map((e) => (
+            <Card key={e.title} className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-lg">{e.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-gray-700">
+                <div className="font-medium text-indigo-600">{e.date}</div>
+                <div>{e.meta}</div>
+                <Button variant="link" className="px-0">Learn more</Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Contact() {
+  return (
+    <section id="contact" className="py-12 md:py-16 bg-gradient-to-b from-white to-slate-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Phone className="h-5 w-5 text-indigo-600"/>
+          <h2 className="text-2xl md:text-3xl font-bold">Contact</h2>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Get in touch</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-700 space-y-2">
+              <div>Helpdesk: +91-XXXXXXXXXX</div>
+              <div>Email: info@rrimmt.edu (sample)</div>
+              <div>Address: RRIIMT Campus, Lucknow (placeholder)</div>
+              <Button variant="outline">Open in Maps</Button>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Quick Enquiry</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="grid gap-3 text-sm">
+                <Input placeholder="Your Name" required />
+                <Input type="email" placeholder="Email" required />
+                <Input placeholder="Program of Interest" />
+                <Button className="bg-gradient-to-r from-indigo-600 to-sky-500">Submit</Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="py-8 border-t">
+      <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-gray-600">
+        <div>© {new Date().getFullYear()} {BRAND.name}. All rights reserved.</div>
+        <div className="flex gap-4">
+          <a href="#" className="hover:text-indigo-600">Privacy</a>
+          <a href="#" className="hover:text-indigo-600">Terms</a>
+          <a href="#" className="hover:text-indigo-600">Accessibility</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export default function App() {
+  // Mount-time enhancement: smooth scroll
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // @ts-ignore
+        if (window.history && "scrollBehavior" in document.documentElement.style) return;
+      } catch {}
+      const handler = (e) => {
+        const a = e.target.closest('a[href^="#"]');
+        if (!a) return;
+        const id = a.getAttribute('href').slice(1);
+        const el = document.getElementById(id);
+        if (el) {
+          e.preventDefault();
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+      document.addEventListener('click', handler);
+      return () => document.removeEventListener('click', handler);
+    }
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-white text-gray-900">
+      <Navbar />
+      <Hero />
+      <Programs />
+      <Admissions />
+      <Placements />
+      <NewsEvents />
+      <Contact />
+      <Footer />
+      <ChatWidget />
+    </div>
+  );
+}
+
+/**
+ * 🔧 Integration Notes
+ * 1) CONTENT: Replace placeholder text, phone, email, and address with official RRIIMT details.
+ * 2) BRANDING: Swap logo, colors (BRAND), and favicon. Add accreditation badges as needed.
+ * 3) 3D: Replace primitive buildings with GLTF models using <primitive/> or <Gltf/> from drei.
+ *    Example:
+ *      import { useGLTF } from '@react-three/drei';
+ *      function CampusModel() { const { scene } = useGLTF('/models/campus.glb'); return <primitive object={scene} /> }
+ * 4) CHATBOT: To connect to an API, replace useFaqBot() with a fetch to your endpoint with proper auth.
+ *    - Example (pseudo):
+ *      const res = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ message }) });
+ *      const data = await res.json(); setMessages([...messages, { role:'bot', text: data.reply }]);
+ * 5) SEO: Add <head> tags, meta, OpenGraph in your framework layout.
+ * 6) PERFORMANCE: Lazy-load 3D and heavy assets; compress GLB/DRACO; use <Perf/> when profiling.
+ * 7) ACCESSIBILITY: Provide alt text, focus states; ensure sufficient contrast.
+ * 8) DEPLOY: Works in Next.js/CRA/Vite. Ensure Tailwind and shadcn/ui are set up. */
